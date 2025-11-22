@@ -73,7 +73,7 @@ The Travel Planner uses a **supervisor-based multi-agent architecture**:
 ### Prerequisites
 
 - Python 3.9 or higher
-- An Anthropic API key or OpenAI API key
+- An Anthropic API key, OpenAI API key, or OpenRouter API key
 
 ### Installation
 
@@ -104,6 +104,8 @@ The Travel Planner uses a **supervisor-based multi-agent architecture**:
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    # OR
    OPENAI_API_KEY=your_openai_api_key_here
+   # OR
+   OPENROUTER_API_KEY=your_openrouter_api_key_here
    ```
 
 ### Running the Demo
@@ -254,7 +256,7 @@ travel-planner-deepagent/
 
 ### Switching LLM Providers
 
-The system supports both Anthropic and OpenAI:
+The system supports Anthropic, OpenAI, and OpenRouter:
 
 ```python
 # Use Anthropic Claude
@@ -268,6 +270,12 @@ planner = create_travel_planner(
     model="gpt-4-turbo-preview",
     provider="openai"
 )
+
+# Use OpenRouter (access to multiple models)
+planner = create_travel_planner(
+    model="anthropic/claude-3.5-sonnet",  # or any OpenRouter model
+    provider="openrouter"
+)
 ```
 
 ## 🌟 Features
@@ -275,7 +283,7 @@ planner = create_travel_planner(
 - ✅ Multi-agent coordination using LangGraph
 - ✅ Specialized agents for different travel tasks
 - ✅ Comprehensive mock data for realistic testing
-- ✅ Support for multiple LLM providers (Anthropic, OpenAI)
+- ✅ Support for multiple LLM providers (Anthropic, OpenAI, OpenRouter)
 - ✅ Interactive and programmatic interfaces
 - ✅ Extensible architecture for adding new features
 - ✅ **Full observability with metrics tracking**

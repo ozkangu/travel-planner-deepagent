@@ -1,5 +1,6 @@
 """Payment processing agent."""
 
+import os
 from langgraph.prebuilt import create_react_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
@@ -14,7 +15,7 @@ def create_payment_agent(model: Optional[str] = None, provider: str = "anthropic
 
     Args:
         model: Model name
-        provider: LLM provider - 'anthropic' or 'openai'
+        provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
 
     Returns:
         Payment agent instance
@@ -25,6 +26,16 @@ def create_payment_agent(model: Optional[str] = None, provider: str = "anthropic
         llm = ChatAnthropic(
             model=model or "claude-3-5-sonnet-20241022",
             temperature=0
+        )
+    elif provider == "openrouter":
+        llm = ChatOpenAI(
+            model=model or "anthropic/claude-3.5-sonnet",
+            temperature=0,
+            openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+            openai_api_base="https://openrouter.ai/api/v1",
+            default_headers={
+                "HTTP-Referer": "https://github.com/travel-planner-deepagent",
+            }
         )
     else:
         llm = ChatOpenAI(

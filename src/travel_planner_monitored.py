@@ -1,6 +1,7 @@
 """Main Travel Planner Agent with Monitoring - Coordinates all subagents."""
 
 from typing import Annotated, Literal, TypedDict, Optional
+import os
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
@@ -54,7 +55,7 @@ class MonitoredTravelPlannerAgent:
 
         Args:
             model: Model name to use
-            provider: LLM provider - 'anthropic' or 'openai'
+            provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
             enable_monitoring: Enable custom metrics tracking
             enable_langsmith: Enable LangSmith tracing
             log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
@@ -84,6 +85,17 @@ class MonitoredTravelPlannerAgent:
             self.llm = ChatAnthropic(
                 model=model or "claude-3-5-sonnet-20241022",
                 temperature=0,
+                callbacks=callbacks
+            )
+        elif provider == "openrouter":
+            self.llm = ChatOpenAI(
+                model=model or "anthropic/claude-3.5-sonnet",
+                temperature=0,
+                openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+                openai_api_base="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/travel-planner-deepagent",
+                },
                 callbacks=callbacks
             )
         else:
@@ -354,7 +366,7 @@ def create_monitored_travel_planner(
 
     Args:
         model: Model name to use
-        provider: LLM provider - 'anthropic' or 'openai'
+        provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
         enable_monitoring: Enable custom metrics tracking
         enable_langsmith: Enable LangSmith tracing
         log_level: Logging level

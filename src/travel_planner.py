@@ -1,6 +1,7 @@
 """Main Travel Planner Agent - Coordinates all subagents."""
 
 from typing import Annotated, Literal, TypedDict, Optional
+import os
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import create_react_agent
@@ -42,7 +43,7 @@ class TravelPlannerAgent:
 
         Args:
             model: Model name to use
-            provider: LLM provider - 'anthropic' or 'openai'
+            provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
         """
         self.provider = provider
         self.model = model
@@ -52,6 +53,16 @@ class TravelPlannerAgent:
             self.llm = ChatAnthropic(
                 model=model or "claude-3-5-sonnet-20241022",
                 temperature=0
+            )
+        elif provider == "openrouter":
+            self.llm = ChatOpenAI(
+                model=model or "anthropic/claude-3.5-sonnet",
+                temperature=0,
+                openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+                openai_api_base="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/travel-planner-deepagent",
+                }
             )
         else:
             self.llm = ChatOpenAI(
@@ -260,7 +271,7 @@ def create_travel_planner(model: Optional[str] = None, provider: str = "anthropi
 
     Args:
         model: Model name to use
-        provider: LLM provider - 'anthropic' or 'openai'
+        provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
 
     Returns:
         TravelPlannerAgent instance
