@@ -1,69 +1,90 @@
 # Travel Planner DeepAgent 🌍✈️
 
-A comprehensive travel planning system built with LangGraph's DeepAgent framework, featuring specialized AI agents for flight booking, hotel reservations, activities, weather forecasts, and **comprehensive monitoring & observability**.
+A comprehensive travel planning system built with **LangChain's DeepAgent framework**, featuring specialized AI agents for flight booking, hotel reservations, activities, weather forecasts, and comprehensive monitoring & observability.
 
 ## 🎯 Overview
 
-This project demonstrates the power of LangGraph's agent framework by creating a multi-agent system for travel planning. The system uses a supervisor pattern to coordinate specialized agents, each handling different aspects of travel planning.
+This project demonstrates the power of **LangChain's DeepAgent library** (`deepagents`) by creating a sophisticated multi-agent system for travel planning. The system uses DeepAgent's built-in capabilities including todo planning, filesystem management, and subagent spawning to coordinate specialized travel agents.
+
+### 🌟 What is DeepAgent?
+
+DeepAgent is LangChain's advanced agent framework that goes beyond simple ReAct agents. It includes:
+
+- **📋 Todo Planning**: Automatic task breakdown with `write_todos` and `read_todos` tools
+- **📁 Filesystem Backend**: Save context to files (`read_file`, `write_file`, `edit_file`, `ls`, `grep`, `glob`)
+- **👥 Subagent Spawning**: Delegate complex tasks to specialized subagents using the `task` tool
+- **🧠 Context Management**: Offload large context to prevent window overflow
+- **⚡ Complex Task Handling**: Perfect for multi-step, open-ended workflows
 
 ## 🏗️ Architecture
 
-The Travel Planner uses a **supervisor-based multi-agent architecture**:
+The Travel Planner uses **DeepAgent's subagent pattern**:
 
 ```
 ┌─────────────────────────────────────────────┐
-│       Travel Planner Supervisor             │
-│    (Coordinates all specialized agents)     │
+│   Travel Planner DeepAgent (Supervisor)     │
+│                                             │
+│  Built-in Capabilities:                    │
+│  • write_todos / read_todos                │
+│  • read_file / write_file / edit_file      │
+│  • ls / grep / glob                        │
+│  • task (subagent spawning)                │
 └────────────┬────────────────────────────────┘
              │
     ┌────────┴────────┐
-    │                 │
-    ▼                 ▼
-┌─────────┐      ┌──────────┐
-│ Flight  │      │  Hotel   │
-│ Agent   │      │  Agent   │
-└─────────┘      └──────────┘
-    ▼                 ▼
-┌─────────┐      ┌──────────┐
-│Payment  │      │Ancillary │
-│ Agent   │      │  Agent   │
-└─────────┘      └──────────┘
-    ▼                 ▼
-┌─────────┐      ┌──────────┐
-│Activity │      │ Weather  │
-│ Agent   │      │  Agent   │
-└─────────┘      └──────────┘
+    │  task() tool    │
+    └────────┬────────┘
+             │
+    ┌────────┴────────────────────────────┐
+    │                                     │
+    ▼                                     ▼
+┌──────────────────┐           ┌──────────────────┐
+│ flight-specialist│           │ hotel-specialist │
+│ (Subagent)       │           │ (Subagent)       │
+└──────────────────┘           └──────────────────┘
+    ▼                                     ▼
+┌──────────────────┐           ┌──────────────────┐
+│payment-specialist│           │ancillary-spec... │
+│ (Subagent)       │           │ (Subagent)       │
+└──────────────────┘           └──────────────────┘
+    ▼                                     ▼
+┌──────────────────┐           ┌──────────────────┐
+│activity-spec...  │           │weather-specialist│
+│ (Subagent)       │           │ (Subagent)       │
+└──────────────────┘           └──────────────────┘
 ```
 
-### Specialized Agents
+### Specialized Subagents
 
-1. **Flight Agent** ✈️
+Each subagent is defined as a dictionary and automatically integrated by DeepAgent:
+
+1. **flight-specialist** ✈️
    - Search for flights between cities
    - Compare prices and options
    - Provide flight details and schedules
 
-2. **Hotel Agent** 🏨
+2. **hotel-specialist** 🏨
    - Search hotels by location and dates
    - Filter by rating, amenities, and price
    - Show detailed hotel information
 
-3. **Payment Agent** 💳
+3. **payment-specialist** 💳
    - Process booking payments
    - Verify transactions
    - Handle multiple payment methods
 
-4. **Ancillary Agent** 🎒
+4. **ancillary-specialist** 🎒
    - Baggage options and pricing
    - Seat selection
    - Travel insurance
    - Car rental options
 
-5. **Activity Agent** 🎭
+5. **activity-specialist** 🎭
    - Recommend tours and attractions
    - Suggest restaurants
    - Provide activity details and booking
 
-6. **Weather Agent** ☀️
+6. **weather-specialist** ☀️
    - Weather forecasts
    - Climate information
    - Packing recommendations
@@ -93,6 +114,8 @@ The Travel Planner uses a **supervisor-based multi-agent architecture**:
    ```bash
    pip install -r requirements.txt
    ```
+
+   This includes the **`deepagents`** library, which is the core framework for this implementation.
 
 4. **Set up environment variables**
    ```bash
@@ -172,94 +195,164 @@ from src.travel_planner import create_travel_planner
 
 planner = create_travel_planner(provider="anthropic")
 
-result = planner.invoke(
-    "Find me flights from Istanbul to London on December 20th, returning December 27th"
-)
+result = planner.invoke({
+    "messages": [{
+        "role": "user",
+        "content": "Find me flights from Istanbul to London on December 20th, returning December 27th"
+    }]
+})
 ```
 
-### Planning a Complete Trip
+### Complex Trip Planning (DeepAgent Shines Here!)
 ```python
-result = planner.invoke("""
-I'm planning a trip to Paris for 5 days in March.
-Can you help me with:
+result = planner.invoke({
+    "messages": [{
+        "role": "user",
+        "content": """I'm planning a 7-day trip to Paris in March. Can you help me with:
 1. Flights from New York
-2. A nice 4-star hotel
-3. Weather forecast
-4. Some must-see attractions
-""")
+2. A nice 4-star hotel in central Paris
+3. Weather forecast for March
+4. Top 5 must-see attractions
+5. Restaurant recommendations
+
+Please create a complete itinerary."""
+    }]
+})
 ```
+
+**What happens behind the scenes:**
+1. DeepAgent uses `write_todos` to break down the plan
+2. Uses `task` tool to spawn specialist subagents
+3. Saves results to files using `write_file`
+4. Aggregates information using `read_file`
+5. Presents a comprehensive travel plan
 
 ### Getting Weather Information
 ```python
-result = planner.invoke(
-    "What's the weather going to be like in London in late December?"
+result = planner.invoke({
+    "messages": [{
+        "role": "user",
+        "content": "What's the weather going to be like in London in late December?"
+    }]
+})
+```
+
+## 🛠️ DeepAgent Implementation Details
+
+### How Subagents Are Defined
+
+Unlike manual StateGraph construction, DeepAgent uses a simple dictionary-based approach:
+
+```python
+from deepagents import create_deep_agent
+
+subagents = [
+    {
+        "name": "flight-specialist",
+        "description": "Expert in searching and booking flights...",
+        "prompt": "You are a specialized flight booking assistant...",
+        "tools": [search_flights, get_flight_details],
+    },
+    # ... more subagents
+]
+
+agent = create_deep_agent(
+    model=llm,
+    system_prompt="You are the Travel Planner Supervisor...",
+    subagents=subagents,
 )
 ```
 
-## 🛠️ Mock Tools
+### Built-in Tools (Automatic)
 
-All tools return realistic mock data for demonstration purposes. In a production environment, these would be replaced with real API integrations.
+DeepAgent automatically provides these tools without explicit configuration:
 
-### Available Tools
+- **Planning**: `write_todos`, `read_todos`
+- **Filesystem**: `read_file`, `write_file`, `edit_file`, `ls`, `grep`, `glob`
+- **Delegation**: `task` (for spawning subagents)
 
-- **Flight Tools**: `search_flights`, `get_flight_details`
-- **Hotel Tools**: `search_hotels`, `get_hotel_details`
-- **Payment Tools**: `process_payment`, `verify_payment`, `get_payment_methods`
-- **Ancillary Tools**: `get_baggage_options`, `get_seat_options`, `get_insurance_options`, `get_car_rental_options`
-- **Activity Tools**: `search_activities`, `get_activity_details`, `get_restaurant_recommendations`
-- **Weather Tools**: `get_weather_forecast`, `get_climate_info`
+### Subagent Spawning
 
-## 🏗️ Project Structure
+The supervisor can delegate tasks using the `task` tool:
 
+```python
+# DeepAgent automatically handles this:
+task("flight-specialist", "Find flights from NYC to Paris Dec 20-27")
+task("hotel-specialist", "Find 4-star hotels in central Paris")
 ```
-travel-planner-deepagent/
-├── src/
-│   ├── __init__.py
-│   ├── travel_planner.py          # Main supervisor agent
-│   ├── agents/                     # Specialized agents
-│   │   ├── __init__.py
-│   │   ├── flight_agent.py
-│   │   ├── hotel_agent.py
-│   │   ├── payment_agent.py
-│   │   ├── ancillary_agent.py
-│   │   ├── activity_agent.py
-│   │   └── weather_agent.py
-│   └── tools/                      # Mock tools
-│       ├── __init__.py
-│       ├── flight_tools.py
-│       ├── hotel_tools.py
-│       ├── payment_tools.py
-│       ├── ancillary_tools.py
-│       ├── activity_tools.py
-│       └── weather_tools.py
-├── demo.py                         # Demo scripts
-├── requirements.txt
-├── .env.example
-└── README.md
-```
+
+Each subagent runs in isolated context, preventing context window overflow.
+
+## 🔬 DeepAgent vs ReAct Agent
+
+| Feature | DeepAgent (This Repo) | ReAct Agent (Old Approach) |
+|---------|----------------------|----------------------------|
+| **Library** | `from deepagents import create_deep_agent` | `from langgraph.prebuilt import create_react_agent` |
+| **Planning** | ✅ Built-in (`write_todos`) | ❌ Manual implementation |
+| **Filesystem** | ✅ Built-in (read/write/edit files) | ❌ Not available |
+| **Subagents** | ✅ Automatic spawning via `task` tool | ❌ Manual StateGraph routing |
+| **Context Management** | ✅ File-based offloading | ❌ Limited to conversation state |
+| **Complex Tasks** | ✅ Excels at multi-step workflows | ⚠️ Suitable for simple tasks |
+| **Use Case** | Research, planning, analysis | Simple Q&A, tool calling |
+
+## 🌟 Features
+
+- ✅ True DeepAgent implementation using `deepagents` library
+- ✅ Automatic todo planning and task breakdown
+- ✅ Filesystem-based context management
+- ✅ Subagent spawning for specialized tasks
+- ✅ Comprehensive mock data for realistic testing
+- ✅ Support for multiple LLM providers (Anthropic, OpenAI)
+- ✅ Interactive and programmatic interfaces
+- ✅ **Full observability with metrics tracking**
+- ✅ **Token usage and cost estimation**
+- ✅ **LangSmith integration for visual tracing**
+- ✅ **Comprehensive logging system**
+- ✅ **Performance monitoring and analytics**
+
+## 🎓 Learning Resources
+
+- [DeepAgent GitHub](https://github.com/langchain-ai/deepagents) - Official DeepAgent repository
+- [DeepAgent Documentation](https://docs.langchain.com/oss/python/deepagents/overview) - Official docs
+- [DeepAgent Blog Post](https://blog.langchain.com/deep-agents/) - Introduction to DeepAgents
+- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/) - LangGraph foundation
+- [LangChain Tools](https://python.langchain.com/docs/modules/tools/) - Tool development
+
+## 📝 Notes
+
+- This is a **demonstration project** with mock data
+- For production use, replace mock tools with real API integrations
+- DeepAgent is ideal for **complex, multi-step tasks**
+- For simple Q&A, consider lightweight alternatives
+- Implement proper authentication and security measures
+- Add persistent storage for bookings and user data
 
 ## 🔧 Customization
 
-### Adding New Agents
+### Adding New Subagents
 
-1. Create a new agent file in `src/agents/`
-2. Implement the agent using `create_react_agent`
-3. Add the agent to the supervisor in `src/travel_planner.py`
+Simply add a new dictionary to the `subagents` list:
+
+```python
+{
+    "name": "visa-specialist",
+    "description": "Helps with visa requirements and applications",
+    "prompt": "You are a visa requirements specialist...",
+    "tools": [check_visa_requirements, get_visa_application_info],
+}
+```
 
 ### Adding New Tools
 
 1. Create tool functions using the `@tool` decorator
-2. Add them to the appropriate agent's tool list
-3. Update the agent's system prompt to include the new functionality
+2. Add them to the appropriate subagent's tool list
 
 ### Switching LLM Providers
-
-The system supports both Anthropic and OpenAI:
 
 ```python
 # Use Anthropic Claude
 planner = create_travel_planner(
-    model="claude-3-5-sonnet-20241022",
+    model="claude-sonnet-4-5-20250929",
     provider="anthropic"
 )
 
@@ -270,38 +363,10 @@ planner = create_travel_planner(
 )
 ```
 
-## 🌟 Features
-
-- ✅ Multi-agent coordination using LangGraph
-- ✅ Specialized agents for different travel tasks
-- ✅ Comprehensive mock data for realistic testing
-- ✅ Support for multiple LLM providers (Anthropic, OpenAI)
-- ✅ Interactive and programmatic interfaces
-- ✅ Extensible architecture for adding new features
-- ✅ **Full observability with metrics tracking**
-- ✅ **Token usage and cost estimation**
-- ✅ **LangSmith integration for visual tracing**
-- ✅ **Comprehensive logging system**
-- ✅ **Performance monitoring and analytics**
-
-## 🎓 Learning Resources
-
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [LangChain Tools](https://python.langchain.com/docs/modules/tools/)
-- [Multi-Agent Systems](https://langchain-ai.github.io/langgraph/tutorials/multi_agent/)
-
-## 📝 Notes
-
-- This is a **demonstration project** with mock data
-- For production use, replace mock tools with real API integrations
-- Consider adding error handling, retry logic, and rate limiting
-- Implement proper authentication and security measures
-- Add persistent storage for bookings and user data
-
 ## 🤝 Contributing
 
 Contributions are welcome! Feel free to:
-- Add new agents or tools
+- Add new subagents or tools
 - Improve existing functionality
 - Integrate real APIs
 - Enhance the demo scripts
@@ -314,11 +379,14 @@ This project is open source and available for educational and demonstration purp
 ## 🙏 Acknowledgments
 
 Built with:
-- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent framework
+- [DeepAgents](https://github.com/langchain-ai/deepagents) - Advanced agent framework
+- [LangGraph](https://github.com/langchain-ai/langgraph) - Agent orchestration foundation
 - [LangChain](https://github.com/langchain-ai/langchain) - LLM framework
 - [Anthropic Claude](https://www.anthropic.com/) - Language model
 - [OpenAI](https://openai.com/) - Language model
 
 ---
 
-**Happy Travels! 🌍✈️🏨**
+**Happy Travels with DeepAgent! 🌍✈️🏨**
+
+*Note: This implementation uses the real `deepagents` library, not `create_react_agent`. For the differences, see the comparison table above.*
