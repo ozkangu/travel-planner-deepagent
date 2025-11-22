@@ -1,6 +1,6 @@
 # Travel Planner DeepAgent 🌍✈️
 
-A comprehensive travel planning system built with LangGraph's DeepAgent framework, featuring specialized AI agents for flight booking, hotel reservations, activities, weather forecasts, and more.
+A comprehensive travel planning system built with LangGraph's DeepAgent framework, featuring specialized AI agents for flight booking, hotel reservations, activities, weather forecasts, and **comprehensive monitoring & observability**.
 
 ## 🎯 Overview
 
@@ -108,7 +108,9 @@ The Travel Planner uses a **supervisor-based multi-agent architecture**:
 
 ### Running the Demo
 
-The project includes three demo modes:
+The project includes **two versions**: standard and monitored.
+
+#### Standard Demo (No Monitoring)
 
 #### 1. Simple Demo (Pre-defined Queries)
 ```bash
@@ -133,6 +135,34 @@ Or simply run:
 python demo.py
 ```
 And select the mode interactively.
+
+#### Monitored Demo (With Full Observability) 📊
+
+For monitoring token usage, costs, and performance:
+
+```bash
+# Simple demo with metrics
+python demo_monitored.py simple
+
+# Interactive demo with monitoring
+python demo_monitored.py interactive
+
+# Performance comparison
+python demo_monitored.py comparison
+
+# LangSmith setup guide
+python demo_monitored.py langsmith
+```
+
+**What monitoring provides:**
+- Real-time token usage tracking
+- Execution time per agent
+- Cost estimation
+- Tool usage analytics
+- Detailed logging
+- LangSmith integration (optional)
+
+See [MONITORING.md](MONITORING.md) for complete monitoring guide.
 
 ## 📚 Usage Examples
 
@@ -245,9 +275,14 @@ planner = create_travel_planner(
 - ✅ Multi-agent coordination using LangGraph
 - ✅ Specialized agents for different travel tasks
 - ✅ Comprehensive mock data for realistic testing
-- ✅ Support for multiple LLM providers
+- ✅ Support for multiple LLM providers (Anthropic, OpenAI)
 - ✅ Interactive and programmatic interfaces
 - ✅ Extensible architecture for adding new features
+- ✅ **Full observability with metrics tracking**
+- ✅ **Token usage and cost estimation**
+- ✅ **LangSmith integration for visual tracing**
+- ✅ **Comprehensive logging system**
+- ✅ **Performance monitoring and analytics**
 
 ## 🎓 Learning Resources
 
