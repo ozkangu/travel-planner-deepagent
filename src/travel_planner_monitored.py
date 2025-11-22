@@ -1,43 +1,40 @@
-"""Main Travel Planner Agent with Monitoring - Coordinates all subagents."""
+"""Main Travel Planner DeepAgent with Monitoring - Coordinates all subagents."""
 
-from typing import Annotated, Literal, TypedDict, Optional
-import os
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
-from langgraph.prebuilt import create_react_agent
+from typing import Optional
+import time
+from deepagents import create_deep_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-import time
 
-from .agents.flight_agent import create_flight_agent
-from .agents.hotel_agent import create_hotel_agent
-from .agents.payment_agent import create_payment_agent
-from .agents.ancillary_agent import create_ancillary_agent
-from .agents.activity_agent import create_activity_agent
-from .agents.weather_agent import create_weather_agent
+from .tools.flight_tools import search_flights, get_flight_details
+from .tools.hotel_tools import search_hotels, get_hotel_details
+from .tools.payment_tools import process_payment, verify_payment, get_payment_methods
+from .tools.ancillary_tools import (
+    get_baggage_options,
+    get_seat_options,
+    get_insurance_options,
+    get_car_rental_options,
+)
+from .tools.activity_tools import (
+    search_activities,
+    get_activity_details,
+    get_restaurant_recommendations,
+)
+from .tools.weather_tools import get_weather_forecast, get_climate_info
 
-from .utils.callbacks import AgentMetricsCallback, MultiAgentMetricsCallback
-from .utils.logging_config import setup_logging, get_agent_logger, log_agent_start, log_agent_end
+from .utils.callbacks import MultiAgentMetricsCallback
+from .utils.logging_config import setup_logging
 from .utils.langsmith_config import setup_langsmith
-
-
-# Define the state
-class TravelPlannerState(TypedDict):
-    """State for the travel planner agent."""
-    messages: Annotated[list[BaseMessage], add_messages]
-    next_agent: Optional[str]
 
 
 class MonitoredTravelPlannerAgent:
     """
-    Travel Planner Agent with comprehensive monitoring and observability.
+    Travel Planner DeepAgent with comprehensive monitoring and observability.
 
     Features:
-    - Token usage tracking per agent
+    - Token usage tracking
     - Execution time monitoring
     - Cost estimation
-    - Tool usage analytics
     - Detailed logging
     - LangSmith integration (optional)
     """
@@ -51,7 +48,7 @@ class MonitoredTravelPlannerAgent:
         log_level: str = "INFO"
     ):
         """
-        Initialize the Monitored Travel Planner Agent.
+        Initialize the Monitored Travel Planner DeepAgent.
 
         Args:
             model: Model name to use
@@ -77,15 +74,18 @@ class MonitoredTravelPlannerAgent:
 
         # Initialize multi-agent metrics
         self.metrics_callback = MultiAgentMetricsCallback() if enable_monitoring else None
+        self.session_start_time = None
 
-        # Initialize LLM for supervisor
-        callbacks = [self.metrics_callback.get_agent_callback("supervisor")] if enable_monitoring else []
+        # Initialize LLM
+        callbacks = []
+        if enable_monitoring and self.metrics_callback:
+            callbacks.append(self.metrics_callback.get_agent_callback("supervisor"))
 
         if provider == "anthropic":
-            self.llm = ChatAnthropic(
-                model=model or "claude-3-5-sonnet-20241022",
+            llm = ChatAnthropic(
+                model=model or "claude-sonnet-4-5-20250929",
                 temperature=0,
-                callbacks=callbacks
+                callbacks=callbacks if callbacks else None
             )
         elif provider == "openrouter":
             self.llm = ChatOpenAI(
@@ -99,259 +99,289 @@ class MonitoredTravelPlannerAgent:
                 callbacks=callbacks
             )
         else:
-            self.llm = ChatOpenAI(
+            llm = ChatOpenAI(
                 model=model or "gpt-4-turbo-preview",
                 temperature=0,
-                callbacks=callbacks
+                callbacks=callbacks if callbacks else None
             )
 
-        # Create specialized agents with monitoring
-        self.logger.info("Initializing specialized agents...")
-        self.agents = self._create_monitored_agents()
-
-        # Build the graph
-        self.graph = self._build_graph()
-        self.logger.info("✅ Travel Planner Agent initialized successfully")
-
-    def _create_monitored_agents(self):
-        """Create all specialized agents with monitoring callbacks."""
-        agents = {}
-        agent_names = ["flight", "hotel", "payment", "ancillary", "activity", "weather"]
-
-        agent_factories = {
-            "flight": create_flight_agent,
-            "hotel": create_hotel_agent,
-            "payment": create_payment_agent,
-            "ancillary": create_ancillary_agent,
-            "activity": create_activity_agent,
-            "weather": create_weather_agent,
-        }
-
-        for agent_name in agent_names:
-            # Get callback for this agent
-            callback = self.metrics_callback.get_agent_callback(agent_name) if self.enable_monitoring else None
-
-            # Create agent with callback
-            agents[agent_name] = agent_factories[agent_name](
-                model=self.model,
-                provider=self.provider
-            )
-
-            self.logger.debug(f"✓ {agent_name} agent created")
-
-        return agents
-
-    def _build_graph(self):
-        """Build the agent coordination graph."""
-        workflow = StateGraph(TravelPlannerState)
-
-        # Add supervisor node
-        workflow.add_node("supervisor", self._supervisor_node)
-
-        # Add agent nodes
-        for agent_name in self.agents.keys():
-            workflow.add_node(agent_name, self._create_agent_node(agent_name))
-
-        # Add edges
-        workflow.add_edge(START, "supervisor")
-
-        # Conditional edges from supervisor
-        workflow.add_conditional_edges(
-            "supervisor",
-            self._route_to_agent,
+        # Define specialized subagents
+        subagents = [
             {
-                "flight": "flight",
-                "hotel": "hotel",
-                "payment": "payment",
-                "ancillary": "ancillary",
-                "activity": "activity",
-                "weather": "weather",
-                "end": END
-            }
+                "name": "flight-specialist",
+                "description": "Expert in searching and booking flights. Use this agent for all flight-related queries including searches, pricing, schedules, and availability.",
+                "prompt": """You are a specialized flight booking assistant with expertise in finding the best flight options.
+
+Your responsibilities:
+- Search for flights based on traveler requirements (dates, destinations, budget, preferences)
+- Compare flight options and highlight the best deals
+- Provide detailed flight information including schedules, airlines, prices, and baggage policies
+- Consider factors like flight duration, number of stops, departure times, and total cost
+- Offer recommendations based on the traveler's priorities (cheapest, fastest, most convenient)
+
+When searching for flights:
+1. Gather all necessary information: origin, destination, dates, number of passengers, cabin class
+2. Search for available options using your tools
+3. Present the results in a clear, organized manner
+4. Highlight the best options based on different criteria (price, duration, convenience)
+5. Provide detailed information when requested
+
+Be concise but thorough. Always prioritize the traveler's stated preferences and budget.""",
+                "tools": [search_flights, get_flight_details],
+            },
+            {
+                "name": "hotel-specialist",
+                "description": "Expert in hotel searches and reservations. Use this agent for finding accommodations, comparing hotel options, and getting hotel details.",
+                "prompt": """You are a specialized hotel reservation assistant focused on finding the perfect accommodation.
+
+Your responsibilities:
+- Search for hotels based on location, dates, budget, and preferences
+- Filter and compare hotels by rating, amenities, price, and location
+- Provide detailed hotel information including facilities, reviews, and policies
+- Recommend hotels based on traveler needs (business, family, luxury, budget)
+- Consider proximity to attractions, transportation, and key locations
+
+When searching for hotels:
+1. Understand traveler requirements: location, dates, budget, preferred rating, amenities
+2. Search using available tools
+3. Present options organized by relevance or price
+4. Highlight unique features and value propositions
+5. Provide comprehensive details when requested
+
+Focus on matching hotels to the traveler's specific needs and preferences.""",
+                "tools": [search_hotels, get_hotel_details],
+            },
+            {
+                "name": "payment-specialist",
+                "description": "Handles payment processing and transaction verification. Use this agent for processing bookings, verifying payments, and managing payment methods.",
+                "prompt": """You are a payment processing specialist ensuring secure and smooth transactions.
+
+Your responsibilities:
+- Process payments for flight and hotel bookings
+- Verify payment status and transaction details
+- Provide information about available payment methods
+- Handle payment confirmations and receipts
+- Address payment-related concerns
+
+When processing payments:
+1. Verify all booking details before processing
+2. Confirm payment method and amount
+3. Process the transaction securely
+4. Provide clear confirmation with transaction ID
+5. Explain next steps after successful payment
+
+Always ensure payment security and provide clear transaction information.""",
+                "tools": [process_payment, verify_payment, get_payment_methods],
+            },
+            {
+                "name": "ancillary-specialist",
+                "description": "Manages extra travel services including baggage, seat selection, insurance, and car rentals. Use for any add-on services.",
+                "prompt": """You are an ancillary services specialist helping travelers customize their journey.
+
+Your responsibilities:
+- Provide baggage options and pricing (checked, carry-on, excess)
+- Assist with seat selection (economy, extra legroom, business, first class)
+- Offer travel insurance options and coverage details
+- Present car rental options at destination
+
+When handling ancillary services:
+1. Understand the specific service needed
+2. Present all available options with clear pricing
+3. Explain benefits and restrictions
+4. Make recommendations based on traveler needs
+5. Process selections and confirmations
+
+Help travelers make informed decisions about add-on services.""",
+                "tools": [
+                    get_baggage_options,
+                    get_seat_options,
+                    get_insurance_options,
+                    get_car_rental_options,
+                ],
+            },
+            {
+                "name": "activity-specialist",
+                "description": "Recommends attractions, tours, activities, and restaurants at the destination. Use for entertainment and dining suggestions.",
+                "prompt": """You are a local activity and dining expert helping travelers make the most of their trip.
+
+Your responsibilities:
+- Recommend popular attractions and hidden gems
+- Suggest tours and activities based on interests
+- Provide restaurant recommendations for different cuisines and budgets
+- Share details about operating hours, pricing, and booking requirements
+- Tailor suggestions to traveler preferences (family-friendly, adventure, culture, relaxation)
+
+When suggesting activities:
+1. Understand traveler interests and trip duration
+2. Search for relevant activities and attractions
+3. Present diverse options organized by category or area
+4. Provide practical details (location, hours, cost, booking info)
+5. Highlight unique experiences
+
+Help create memorable experiences at the destination.""",
+                "tools": [
+                    search_activities,
+                    get_activity_details,
+                    get_restaurant_recommendations,
+                ],
+            },
+            {
+                "name": "weather-specialist",
+                "description": "Provides weather forecasts and climate information for travel planning. Use for weather-related queries and packing advice.",
+                "prompt": """You are a weather and climate specialist helping travelers prepare for their journey.
+
+Your responsibilities:
+- Provide weather forecasts for travel dates and destinations
+- Share climate information and typical weather patterns
+- Offer packing recommendations based on expected conditions
+- Advise on best times to visit based on weather
+- Alert to potential weather concerns or seasonal factors
+
+When providing weather information:
+1. Get specific dates and destination
+2. Fetch current forecast and climate data
+3. Present information clearly (temperature, precipitation, conditions)
+4. Provide practical advice for the expected weather
+5. Suggest appropriate clothing and gear
+
+Help travelers pack appropriately and plan activities around weather conditions.""",
+                "tools": [get_weather_forecast, get_climate_info],
+            },
+        ]
+
+        # Main supervisor system prompt
+        supervisor_prompt = """You are the Travel Planner Supervisor, an expert travel planning assistant coordinating a team of specialized agents.
+
+🌟 YOUR CAPABILITIES:
+
+You have access to powerful DeepAgent features:
+1. **Todo Planning** (write_todos/read_todos): Break down complex trip planning into manageable steps
+2. **Filesystem** (read_file/write_file/edit_file/ls/grep): Save itineraries, compare options, and manage travel documents
+3. **Subagent Delegation** (task tool): Delegate specialized work to expert subagents
+
+🎯 YOUR TEAM OF SPECIALISTS:
+
+- **flight-specialist**: Flight searches, bookings, pricing, and schedules
+- **hotel-specialist**: Hotel searches, reservations, and accommodation details
+- **payment-specialist**: Payment processing and transaction management
+- **ancillary-specialist**: Baggage, seats, insurance, car rentals
+- **activity-specialist**: Attractions, tours, activities, and restaurants
+- **weather-specialist**: Weather forecasts and climate information
+
+📋 PLANNING WORKFLOW:
+
+For complex trip planning:
+1. Use **write_todos** to create a step-by-step plan
+2. Use the **task** tool to delegate to specialists
+3. Use **write_file** to save important information
+4. Use **read_file** to review and compare saved information
+
+🎨 BEST PRACTICES:
+
+- Start with write_todos for multi-step requests
+- Delegate ONE task at a time to subagents
+- Save important results to files for later reference
+- Provide clear, organized final summaries
+- Ask clarifying questions when requirements are unclear
+- Always confirm important details before processing payments
+
+Remember: You're coordinating complex travel planning. Use your DeepAgent capabilities to break down tasks, delegate to specialists, and deliver thorough, well-organized travel plans."""
+
+        # Create the main DeepAgent
+        self.logger.info("Creating Travel Planner DeepAgent...")
+        self.agent = create_deep_agent(
+            model=llm,
+            system_prompt=supervisor_prompt,
+            subagents=subagents,
         )
+        self.logger.info("DeepAgent initialized successfully")
 
-        # Edges back to supervisor
-        for agent_name in self.agents.keys():
-            workflow.add_edge(agent_name, "supervisor")
-
-        return workflow.compile()
-
-    def _supervisor_node(self, state: TravelPlannerState) -> TravelPlannerState:
-        """Supervisor node that decides which agent to call next."""
-        messages = state["messages"]
-
-        # System prompt
-        system_prompt = """You are the Travel Planner Supervisor, coordinating a team of specialized travel agents.
-
-Your team consists of:
-- flight: Handles flight searches and booking
-- hotel: Handles hotel searches and booking
-- payment: Processes payments and transactions
-- ancillary: Handles extra services (baggage, seats, insurance, car rentals)
-- activity: Recommends activities, attractions, and restaurants
-- weather: Provides weather forecasts and climate information
-
-Your job is to:
-1. Understand what the traveler needs
-2. Decide which specialist agent should handle the request
-3. Coordinate the work between different agents
-4. Provide a final summary when all tasks are complete
-
-When you receive a message, determine which agent should handle it. If the request is complete, respond with "FINISHED" to end the conversation."""
-
-        routing_prompt = f"""{system_prompt}
-
-Based on the conversation, which agent should handle the next task?
-
-Respond with one of: flight, hotel, payment, ancillary, activity, weather, or FINISHED
-
-Conversation so far:
-{self._format_messages(messages[-5:])}
-
-Which agent should handle the next task? If the task is complete, say FINISHED."""
-
-        # Call LLM
-        start_time = time.time()
-        response = self.llm.invoke([HumanMessage(content=routing_prompt)])
-        duration = time.time() - start_time
-
-        self.logger.debug(f"Supervisor routing decision took {duration:.3f}s")
-
-        # Parse response
-        content = response.content.strip().lower()
-
-        if "finished" in content or "complete" in content:
-            next_agent = "end"
-            state["messages"].append(
-                AIMessage(content="Is there anything else you'd like help with for your trip?")
-            )
-        elif "flight" in content:
-            next_agent = "flight"
-        elif "hotel" in content:
-            next_agent = "hotel"
-        elif "payment" in content:
-            next_agent = "payment"
-        elif "ancillary" in content or "baggage" in content or "seat" in content:
-            next_agent = "ancillary"
-        elif "activity" in content or "restaurant" in content:
-            next_agent = "activity"
-        elif "weather" in content or "climate" in content:
-            next_agent = "weather"
-        else:
-            next_agent = "end"
-
-        state["next_agent"] = next_agent
-        self.logger.info(f"Supervisor routing to: {next_agent}")
-
-        return state
-
-    def _create_agent_node(self, agent_name: str):
-        """Create a node function for a specific agent."""
-
-        def agent_node(state: TravelPlannerState) -> TravelPlannerState:
-            """Execute the specified agent."""
-            start_time = time.time()
-            log_agent_start(self.logger, agent_name, "Processing user request")
-
-            agent = self.agents[agent_name]
-            messages = state["messages"]
-
-            # Set current agent for metrics
-            if self.metrics_callback:
-                self.metrics_callback.set_current_agent(agent_name)
-
-            # Invoke agent
-            result = agent.invoke({"messages": messages})
-
-            # Add response to state
-            state["messages"].extend(result["messages"][len(messages):])
-
-            duration = time.time() - start_time
-            log_agent_end(self.logger, agent_name, duration)
-
-            return state
-
-        return agent_node
-
-    def _route_to_agent(self, state: TravelPlannerState) -> str:
-        """Route to the appropriate agent."""
-        return state.get("next_agent", "end")
-
-    def _format_messages(self, messages: list[BaseMessage]) -> str:
-        """Format messages for display."""
-        formatted = []
-        for msg in messages:
-            if isinstance(msg, HumanMessage):
-                formatted.append(f"User: {msg.content}")
-            elif isinstance(msg, AIMessage):
-                formatted.append(f"Assistant: {msg.content}")
-        return "\n".join(formatted)
-
-    def invoke(self, message: str, print_metrics: bool = True) -> dict:
+    def invoke(self, message: str, print_metrics: bool = False) -> dict:
         """
-        Process a user message and return the response.
+        Process a user message and return the response with metrics.
 
         Args:
             message: User's message/request
             print_metrics: Whether to print metrics after completion
 
         Returns:
-            Response from the agent with metrics
+            Dictionary with 'messages' and 'metrics' keys
         """
-        self.logger.info(f"Processing request: {message[:80]}...")
+        self.session_start_time = time.time()
+        self.logger.info(f"Processing request: {message[:100]}...")
 
-        initial_state = {
-            "messages": [HumanMessage(content=message)],
-            "next_agent": None
+        # Invoke the agent
+        result = self.agent.invoke({"messages": [{"role": "user", "content": message}]})
+
+        # Calculate session duration
+        session_duration = time.time() - self.session_start_time
+
+        # Get metrics
+        metrics = None
+        if self.enable_monitoring and self.metrics_callback:
+            metrics = self.metrics_callback.get_all_metrics()
+            metrics["session_duration"] = session_duration
+
+            if print_metrics:
+                self.print_metrics()
+
+        self.logger.info(f"Request completed in {session_duration:.2f}s")
+
+        return {
+            "messages": result.get("messages", []),
+            "metrics": metrics
         }
-
-        # Reset metrics for new session
-        if self.metrics_callback:
-            for callback in self.metrics_callback.agent_metrics.values():
-                callback.reset()
-
-        # Execute
-        start_time = time.time()
-        result = self.graph.invoke(initial_state)
-        total_duration = time.time() - start_time
-
-        self.logger.info(f"✅ Request completed in {total_duration:.3f}s")
-
-        # Print metrics
-        if self.enable_monitoring and print_metrics:
-            self.metrics_callback.print_summary()
-
-        # Add metrics to result
-        if self.enable_monitoring:
-            result["metrics"] = self.metrics_callback.get_all_metrics()
-
-        return result
 
     def stream(self, message: str):
-        """Stream responses from the agent."""
-        initial_state = {
-            "messages": [HumanMessage(content=message)],
-            "next_agent": None
-        }
+        """
+        Stream responses from the agent.
 
-        for update in self.graph.stream(initial_state):
+        Args:
+            message: User's message/request
+
+        Yields:
+            Updates from the agent
+        """
+        self.session_start_time = time.time()
+        self.logger.info(f"Streaming request: {message[:100]}...")
+
+        for update in self.agent.stream({"messages": [{"role": "user", "content": message}]}):
             yield update
 
     def get_metrics(self) -> dict:
         """Get current metrics."""
-        if self.enable_monitoring:
-            return self.metrics_callback.get_all_metrics()
-        return {}
+        if not self.enable_monitoring or not self.metrics_callback:
+            return {}
 
-    def save_metrics(self, filepath: str):
-        """Save metrics to file."""
-        if self.enable_monitoring:
-            self.metrics_callback.save_metrics(filepath)
+        metrics = self.metrics_callback.get_all_metrics()
+        if self.session_start_time:
+            metrics["session_duration"] = time.time() - self.session_start_time
+
+        return metrics
+
+    def print_metrics(self):
+        """Print formatted metrics summary."""
+        if not self.enable_monitoring or not self.metrics_callback:
+            print("Monitoring is not enabled")
+            return
+
+        self.metrics_callback.print_summary()
+
+    def save_metrics(self, filename: str):
+        """Save metrics to a JSON file."""
+        if not self.enable_monitoring or not self.metrics_callback:
+            print("Monitoring is not enabled")
+            return
+
+        self.metrics_callback.save_metrics(filename)
+        self.logger.info(f"Metrics saved to {filename}")
 
     def reset_metrics(self):
         """Reset all metrics."""
-        if self.enable_monitoring:
+        if self.enable_monitoring and self.metrics_callback:
             self.metrics_callback = MultiAgentMetricsCallback()
+            self.session_start_time = None
+            self.logger.info("Metrics reset")
 
 
 def create_monitored_travel_planner(
@@ -362,14 +392,14 @@ def create_monitored_travel_planner(
     log_level: str = "INFO"
 ):
     """
-    Create a monitored Travel Planner Agent instance.
+    Create a monitored Travel Planner DeepAgent instance.
 
     Args:
         model: Model name to use
         provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
         enable_monitoring: Enable custom metrics tracking
         enable_langsmith: Enable LangSmith tracing
-        log_level: Logging level
+        log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
 
     Returns:
         MonitoredTravelPlannerAgent instance
