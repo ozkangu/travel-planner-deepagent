@@ -94,7 +94,7 @@ Each subagent is defined as a dictionary and automatically integrated by DeepAge
 ### Prerequisites
 
 - Python 3.9 or higher
-- An Anthropic API key or OpenAI API key
+- An Anthropic API key, OpenAI API key, or OpenRouter API key
 
 ### Installation
 
@@ -127,6 +127,8 @@ Each subagent is defined as a dictionary and automatically integrated by DeepAge
    ANTHROPIC_API_KEY=your_anthropic_api_key_here
    # OR
    OPENAI_API_KEY=your_openai_api_key_here
+   # OR
+   OPENROUTER_API_KEY=your_openrouter_api_key_here
    ```
 
 ### Running the Demo
@@ -281,7 +283,7 @@ task("flight-specialist", "Find flights from NYC to Paris Dec 20-27")
 task("hotel-specialist", "Find 4-star hotels in central Paris")
 ```
 
-Each subagent runs in isolated context, preventing context window overflow.
+The system supports Anthropic, OpenAI, and OpenRouter:
 
 ## 🔬 DeepAgent vs ReAct Agent
 
@@ -294,6 +296,18 @@ Each subagent runs in isolated context, preventing context window overflow.
 | **Context Management** | ✅ File-based offloading | ❌ Limited to conversation state |
 | **Complex Tasks** | ✅ Excels at multi-step workflows | ⚠️ Suitable for simple tasks |
 | **Use Case** | Research, planning, analysis | Simple Q&A, tool calling |
+# Use OpenAI GPT
+planner = create_travel_planner(
+    model="gpt-4-turbo-preview",
+    provider="openai"
+)
+
+# Use OpenRouter (access to multiple models)
+planner = create_travel_planner(
+    model="anthropic/claude-3.5-sonnet",  # or any OpenRouter model
+    provider="openrouter"
+)
+```
 
 ## 🌟 Features
 
@@ -302,7 +316,7 @@ Each subagent runs in isolated context, preventing context window overflow.
 - ✅ Filesystem-based context management
 - ✅ Subagent spawning for specialized tasks
 - ✅ Comprehensive mock data for realistic testing
-- ✅ Support for multiple LLM providers (Anthropic, OpenAI)
+- ✅ Support for multiple LLM providers (Anthropic, OpenAI, OpenRouter)
 - ✅ Interactive and programmatic interfaces
 - ✅ **Full observability with metrics tracking**
 - ✅ **Token usage and cost estimation**

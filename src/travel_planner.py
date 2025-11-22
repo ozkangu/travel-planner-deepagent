@@ -30,8 +30,8 @@ def create_travel_planner(model: Optional[str] = None, provider: str = "anthropi
     featuring automatic todo planning, filesystem management, and subagent spawning.
 
     Args:
-        model: Model name to use (defaults to claude-sonnet-4-5-20250929 for Anthropic)
-        provider: LLM provider - 'anthropic' or 'openai'
+        model: Model name to use
+        provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
 
     Returns:
         Compiled DeepAgent instance

@@ -52,7 +52,7 @@ class MonitoredTravelPlannerAgent:
 
         Args:
             model: Model name to use
-            provider: LLM provider - 'anthropic' or 'openai'
+            provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
             enable_monitoring: Enable custom metrics tracking
             enable_langsmith: Enable LangSmith tracing
             log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
@@ -86,6 +86,17 @@ class MonitoredTravelPlannerAgent:
                 model=model or "claude-sonnet-4-5-20250929",
                 temperature=0,
                 callbacks=callbacks if callbacks else None
+            )
+        elif provider == "openrouter":
+            self.llm = ChatOpenAI(
+                model=model or "anthropic/claude-3.5-sonnet",
+                temperature=0,
+                openai_api_key=os.getenv("OPENROUTER_API_KEY"),
+                openai_api_base="https://openrouter.ai/api/v1",
+                default_headers={
+                    "HTTP-Referer": "https://github.com/travel-planner-deepagent",
+                },
+                callbacks=callbacks
             )
         else:
             llm = ChatOpenAI(
@@ -385,7 +396,7 @@ def create_monitored_travel_planner(
 
     Args:
         model: Model name to use
-        provider: LLM provider - 'anthropic' or 'openai'
+        provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
         enable_monitoring: Enable custom metrics tracking
         enable_langsmith: Enable LangSmith tracing
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR)
