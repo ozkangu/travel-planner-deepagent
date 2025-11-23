@@ -19,6 +19,12 @@ async def search_hotels_node(
     3. Filters by rating, price, amenities
     4. Returns top options
     """
+    if not state.get("requires_hotels", False):
+        return {
+            "hotel_options": [],
+            "completed_steps": state.get("completed_steps", []) + ["hotel_search_skipped"]
+        }
+
     destination = state.get("destination")
     departure_date = state.get("departure_date")
     return_date = state.get("return_date")
@@ -39,7 +45,7 @@ async def search_hotels_node(
 
     try:
         # Import the actual hotel search tool
-        from ...src.tools.hotel_tools import search_hotels
+        from src.tools.hotel_tools import search_hotels
 
         # Calculate number of nights
         from datetime import datetime
@@ -57,7 +63,7 @@ async def search_hotels_node(
 
         # Build search parameters
         search_params = {
-            "location": destination,
+            "city": destination,
             "check_in": departure_date,
             "check_out": return_date,
             "guests": num_passengers
@@ -78,22 +84,28 @@ async def search_hotels_node(
         result = search_hotels.invoke(search_params)
 
         # Parse results
+        # Parse results
         hotel_options: List[HotelOption] = []
 
-        if "hotels" in result or "options" in result:
+        if isinstance(result, list):
+            raw_hotels = result
+        elif isinstance(result, dict) and ("hotels" in result or "options" in result):
             raw_hotels = result.get("hotels", result.get("options", []))
-            for hotel in raw_hotels[:5]:  # Top 5 options
-                price_per_night = hotel.get("price_per_night", 0.0)
-                hotel_options.append(HotelOption(
-                    hotel_id=hotel.get("id", ""),
-                    name=hotel.get("name", ""),
-                    location=destination,
-                    rating=hotel.get("rating", 0.0),
-                    price_per_night=price_per_night,
-                    total_price=price_per_night * num_nights,
-                    amenities=hotel.get("amenities", []),
-                    distance_to_center=hotel.get("distance_to_center", 0.0)
-                ))
+        else:
+            raw_hotels = []
+
+        for hotel in raw_hotels[:5]:  # Top 5 options
+            price_per_night = hotel.get("price_per_night", 0.0)
+            hotel_options.append(HotelOption(
+                hotel_id=hotel.get("hotel_id", ""),
+                name=hotel.get("name", ""),
+                location=destination,
+                rating=hotel.get("rating", 0.0),
+                price_per_night=price_per_night,
+                total_price=price_per_night * num_nights,
+                amenities=hotel.get("amenities", []),
+                distance_to_center=0.0 # Tool returns string like "2.5 km", schema might expect float
+            ))
 
         return {
             "hotel_options": hotel_options,

@@ -19,6 +19,12 @@ async def search_activities_node(
     3. Filters by user interests
     4. Returns curated options
     """
+    if not state.get("requires_activities", False):
+        return {
+            "activity_options": [],
+            "completed_steps": state.get("completed_steps", []) + ["activity_search_skipped"]
+        }
+
     destination = state.get("destination")
     preferences = state.get("preferences", {})
     budget = state.get("budget")
@@ -35,19 +41,20 @@ async def search_activities_node(
 
     try:
         # Import activity tools
-        from ...src.tools.activity_tools import search_activities
+        from src.tools.activity_tools import search_activities
 
         # Build search parameters
         search_params = {
-            "location": destination
+            "city": destination
         }
 
         # Add interest filters if specified
-        if "activities" in preferences:
-            search_params["categories"] = preferences["activities"]
-
-        if "activity_types" in preferences:
-            search_params["types"] = preferences["activity_types"]
+        # Add interest filters if specified
+        if "activities" in preferences and isinstance(preferences["activities"], list) and preferences["activities"]:
+            # Tool only supports one category, pick the first one
+            search_params["category"] = preferences["activities"][0]
+        elif "activities" in preferences and isinstance(preferences["activities"], str):
+            search_params["category"] = preferences["activities"]
 
         if budget:
             # Reserve portion for activities
@@ -58,20 +65,26 @@ async def search_activities_node(
         result = search_activities.invoke(search_params)
 
         # Parse results
+        # Parse results
         activity_options: List[ActivityOption] = []
 
-        if "activities" in result or "options" in result:
+        if isinstance(result, list):
+            raw_activities = result
+        elif isinstance(result, dict) and ("activities" in result or "options" in result):
             raw_activities = result.get("activities", result.get("options", []))
-            for activity in raw_activities[:10]:  # Top 10 options
-                activity_options.append(ActivityOption(
-                    activity_id=activity.get("id", ""),
-                    name=activity.get("name", ""),
-                    type=activity.get("type", ""),
-                    description=activity.get("description", ""),
-                    price=activity.get("price", 0.0),
-                    duration_hours=activity.get("duration", 0.0),
-                    rating=activity.get("rating", 0.0)
-                ))
+        else:
+            raw_activities = []
+
+        for activity in raw_activities[:10]:  # Top 10 options
+            activity_options.append(ActivityOption(
+                activity_id=activity.get("activity_id", ""),
+                name=activity.get("name", ""),
+                type=activity.get("category", ""),
+                description=activity.get("description", ""),
+                price=activity.get("price", 0.0),
+                duration_hours=activity.get("duration_hours", 0.0),
+                rating=activity.get("rating", 0.0)
+            ))
 
         return {
             "activity_options": activity_options,

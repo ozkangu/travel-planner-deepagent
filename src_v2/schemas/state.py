@@ -98,6 +98,7 @@ class TravelPlannerState(TypedDict, total=False):
     retry_count: int
 
     # Final output
+    response: Optional[str]
     itinerary: Optional[str]
     recommendations: List[str]
     next_actions: List[str]

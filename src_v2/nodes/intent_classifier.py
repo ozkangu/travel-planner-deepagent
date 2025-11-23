@@ -18,6 +18,7 @@ Analyze the user query and extract:
 4. User preferences: any specific preferences mentioned
 
 User Query: {query}
+Current Date: {current_date}
 
 Respond ONLY with valid JSON in this exact format:
 {{
@@ -39,7 +40,8 @@ Respond ONLY with valid JSON in this exact format:
     }}
 }}
 
-Be precise. Extract only information explicitly mentioned or strongly implied."""
+Be precise. Extract only information explicitly mentioned or strongly implied.
+IMPORTANT: If the user mentions a duration (e.g., "for 3 nights"), CALCULATE the return_date based on the departure_date. Do not leave it null if it can be inferred."""
 
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
@@ -86,8 +88,10 @@ async def classify_intent_node(
 
     try:
         # Call LLM for intent classification
+        from datetime import datetime
+        current_date = datetime.now().strftime("%Y-%m-%d")
         messages = [
-            SystemMessage(content=INTENT_CLASSIFICATION_PROMPT.format(query=user_query))
+            SystemMessage(content=INTENT_CLASSIFICATION_PROMPT.format(query=user_query, current_date=current_date))
         ]
 
         response = await llm.ainvoke(messages)

@@ -23,6 +23,8 @@ from src_v2.schemas.state import TravelPlannerState
 
 # Load environment variables
 load_dotenv()
+print(f"DEBUG: OPENROUTER_API_KEY present: {bool(os.getenv('OPENROUTER_API_KEY'))}")
+print(f"DEBUG: LLM_MODEL: {os.getenv('LLM_MODEL')}")
 
 # Page configuration
 st.set_page_config(
@@ -152,37 +154,41 @@ async def process_message(user_message: str) -> Dict[str, Any]:
         update_context_from_state(result)
 
         # Prepare response
-        response_parts = []
+        if result.get("response"):
+            response = result["response"]
+        else:
+            # Fallback to manual construction
+            response_parts = []
 
-        # Main itinerary
-        if result.get("itinerary"):
-            response_parts.append(result["itinerary"])
+            # Main itinerary
+            if result.get("itinerary"):
+                response_parts.append(result["itinerary"])
 
-        # Flight options (if any)
-        if result.get("flight_options"):
-            response_parts.append(f"\n\n✈️ **Found {len(result['flight_options'])} flight options**")
+            # Flight options (if any)
+            if result.get("flight_options"):
+                response_parts.append(f"\n\n✈️ **Found {len(result['flight_options'])} flight options**")
 
-        # Hotel options (if any)
-        if result.get("hotel_options"):
-            response_parts.append(f"\n\n🏨 **Found {len(result['hotel_options'])} hotel options**")
+            # Hotel options (if any)
+            if result.get("hotel_options"):
+                response_parts.append(f"\n\n🏨 **Found {len(result['hotel_options'])} hotel options**")
 
-        # Activity options (if any)
-        if result.get("activity_options"):
-            response_parts.append(f"\n\n🎭 **Found {len(result['activity_options'])} activity options**")
+            # Activity options (if any)
+            if result.get("activity_options"):
+                response_parts.append(f"\n\n🎭 **Found {len(result['activity_options'])} activity options**")
 
-        # Recommendations
-        if result.get("recommendations"):
-            response_parts.append("\n\n📋 **Recommendations:**")
-            for rec in result["recommendations"]:
-                response_parts.append(f"- {rec}")
+            # Recommendations
+            if result.get("recommendations"):
+                response_parts.append("\n\n📋 **Recommendations:**")
+                for rec in result["recommendations"]:
+                    response_parts.append(f"- {rec}")
 
-        # Errors (if any)
-        if result.get("errors"):
-            response_parts.append("\n\n⚠️ **Warnings:**")
-            for error in result["errors"]:
-                response_parts.append(f"- {error}")
+            # Errors (if any)
+            if result.get("errors"):
+                response_parts.append("\n\n⚠️ **Warnings:**")
+                for error in result["errors"]:
+                    response_parts.append(f"- {error}")
 
-        response = "\n".join(response_parts) if response_parts else "I couldn't generate a response. Please try rephrasing your request."
+            response = "\n".join(response_parts) if response_parts else "I couldn't generate a response. Please try rephrasing your request."
 
         return {
             "response": response,

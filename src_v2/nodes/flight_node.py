@@ -20,11 +20,17 @@ async def search_flights_node(
     3. Filters and ranks results
     4. Returns top options
     """
+    if not state.get("requires_flights", False):
+        return {
+            "flight_options": [],
+            "completed_steps": state.get("completed_steps", []) + ["flight_search_skipped"]
+        }
+
     origin = state.get("origin")
     destination = state.get("destination")
     departure_date = state.get("departure_date")
     return_date = state.get("return_date")
-    num_passengers = state.get("num_passengers", 1)
+    num_passengers = state.get("num_passengers") or 1
     budget = state.get("budget")
     preferences = state.get("preferences", {})
 
@@ -41,7 +47,7 @@ async def search_flights_node(
 
     try:
         # Import the actual flight search tool from original codebase
-        from ...src.tools.flight_tools import search_flights
+        from src.tools.flight_tools import search_flights
 
         # Build search parameters
         search_params = {
@@ -65,26 +71,30 @@ async def search_flights_node(
 
         # Parse results (assuming the tool returns a string or dict)
         # In real implementation, this would parse actual flight data
+        # Parse results
         flight_options: List[FlightOption] = []
 
-        # For MVP, we'll create mock results based on the search
-        # In production, parse actual API responses
-        if "flights" in result or "options" in result:
-            # Parse real results
+        # Handle list output directly
+        if isinstance(result, list):
+            raw_flights = result
+        elif isinstance(result, dict) and ("flights" in result or "options" in result):
             raw_flights = result.get("flights", result.get("options", []))
-            for flight in raw_flights[:5]:  # Top 5 options
-                flight_options.append(FlightOption(
-                    flight_id=flight.get("id", ""),
-                    airline=flight.get("airline", ""),
-                    origin=origin,
-                    destination=destination,
-                    departure_time=flight.get("departure_time", ""),
-                    arrival_time=flight.get("arrival_time", ""),
-                    duration_minutes=flight.get("duration", 0),
-                    price=flight.get("price", 0.0),
-                    stops=flight.get("stops", 0),
-                    cabin_class=cabin_class
-                ))
+        else:
+            raw_flights = []
+
+        for flight in raw_flights[:5]:  # Top 5 options
+            flight_options.append(FlightOption(
+                flight_id=flight.get("flight_id", ""),
+                airline=flight.get("airline", {}).get("name", "") if isinstance(flight.get("airline"), dict) else flight.get("airline", ""),
+                origin=origin,
+                destination=destination,
+                departure_time=flight.get("departure_time", ""),
+                arrival_time=flight.get("arrival_time", ""),  # Note: tool doesn't return arrival_time directly, might need calculation or fallback
+                duration_minutes=0, # Tool returns string duration, need parsing if needed, or just store string
+                price=flight.get("total_price", 0.0),
+                stops=flight.get("stops", 0),
+                cabin_class=cabin_class
+            ))
 
         return {
             "flight_options": flight_options,

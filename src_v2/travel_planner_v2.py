@@ -62,7 +62,7 @@ class TravelPlannerV2:
             )
         elif provider == "openrouter":
             self.llm = ChatOpenAI(
-                model=model or "anthropic/claude-3.5-sonnet",
+                model=model or os.getenv("LLM_MODEL") or "anthropic/claude-3.5-sonnet",
                 temperature=0,
                 base_url="https://openrouter.ai/api/v1",
                 api_key=os.getenv("OPENROUTER_API_KEY")

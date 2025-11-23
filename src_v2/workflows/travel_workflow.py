@@ -11,6 +11,7 @@ from ..nodes.hotel_node import search_hotels_node
 from ..nodes.weather_node import check_weather_node
 from ..nodes.activity_node import search_activities_node
 from ..nodes.itinerary_node import generate_itinerary_node
+from ..nodes.response_node import generate_response_node
 
 
 def route_after_intent(
@@ -142,17 +143,22 @@ def create_travel_workflow(llm: BaseChatModel):
         wrap_async_node(generate_itinerary_node)
     )
 
+    workflow.add_node(
+        "response_generator",
+        wrap_async_node(generate_response_node)
+    )
+
     # Define edges
     # Start with intent classification
     workflow.set_entry_point("classify_intent")
 
-    # After intent classification, route to parallel search or end
+    # After intent classification, route to parallel search or response
     workflow.add_conditional_edges(
         "classify_intent",
         route_after_intent,
         {
             "parallel_search": "search_flights",  # Start parallel branch
-            "end": END
+            "end": "response_generator"  # Go to response generation for general queries
         }
     )
 
@@ -162,18 +168,21 @@ def create_travel_workflow(llm: BaseChatModel):
     workflow.add_edge("search_hotels", "check_weather")
     workflow.add_edge("check_weather", "search_activities")
 
-    # After all searches, route to itinerary or end
+    # After all searches, route to itinerary or response
     workflow.add_conditional_edges(
         "search_activities",
         route_after_parallel_search,
         {
             "generate_itinerary": "generate_itinerary",
-            "end": END
+            "end": "response_generator"  # Go to response generation for search-only results
         }
     )
 
-    # After itinerary generation, end
-    workflow.add_edge("generate_itinerary", END)
+    # After itinerary generation, generate response
+    workflow.add_edge("generate_itinerary", "response_generator")
+    
+    # End after response
+    workflow.add_edge("response_generator", END)
 
     # Compile the graph
     app = workflow.compile()
