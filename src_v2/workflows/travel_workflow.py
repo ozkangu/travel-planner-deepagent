@@ -82,35 +82,64 @@ def create_travel_workflow(llm: BaseChatModel):
     # Create the graph
     workflow = StateGraph(TravelPlannerState)
 
-    # Add nodes
+    # Create sync wrappers for async nodes
+    import asyncio
+    import nest_asyncio
+
+    # Apply nest_asyncio to allow nested event loops
+    nest_asyncio.apply()
+
+    def wrap_async_node(async_func):
+        """Wrapper to handle async nodes in LangGraph."""
+        def wrapper(state):
+            try:
+                # Try to get existing loop
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # Loop is running, run in current loop
+                    return loop.run_until_complete(async_func(state, llm))
+                else:
+                    # No running loop, use asyncio.run
+                    return asyncio.run(async_func(state, llm))
+            except RuntimeError:
+                # No event loop, create new one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    return loop.run_until_complete(async_func(state, llm))
+                finally:
+                    loop.close()
+        return wrapper
+
+    # Add nodes with sync wrappers
     workflow.add_node(
         "classify_intent",
-        lambda state: classify_intent_node(state, llm)
+        wrap_async_node(classify_intent_node)
     )
 
     workflow.add_node(
         "search_flights",
-        lambda state: search_flights_node(state, llm)
+        wrap_async_node(search_flights_node)
     )
 
     workflow.add_node(
         "search_hotels",
-        lambda state: search_hotels_node(state, llm)
+        wrap_async_node(search_hotels_node)
     )
 
     workflow.add_node(
         "check_weather",
-        lambda state: check_weather_node(state, llm)
+        wrap_async_node(check_weather_node)
     )
 
     workflow.add_node(
         "search_activities",
-        lambda state: search_activities_node(state, llm)
+        wrap_async_node(search_activities_node)
     )
 
     workflow.add_node(
         "generate_itinerary",
-        lambda state: generate_itinerary_node(state, llm)
+        wrap_async_node(generate_itinerary_node)
     )
 
     # Define edges

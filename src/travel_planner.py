@@ -1,6 +1,7 @@
 """Main Travel Planner DeepAgent - Coordinates all subagents using create_deep_agent."""
 
 from typing import Optional
+import os
 from deepagents import create_deep_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
@@ -38,10 +39,18 @@ def create_travel_planner(model: Optional[str] = None, provider: str = "anthropi
     """
 
     # Initialize LLM
+    # Initialize LLM
     if provider == "anthropic":
         llm = ChatAnthropic(
             model=model or "claude-sonnet-4-5-20250929",
             temperature=0
+        )
+    elif provider == "openrouter":
+        llm = ChatOpenAI(
+            model=model or "anthropic/claude-3.5-sonnet",
+            temperature=0,
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY")
         )
     else:
         llm = ChatOpenAI(
@@ -55,7 +64,7 @@ def create_travel_planner(model: Optional[str] = None, provider: str = "anthropi
         {
             "name": "flight-specialist",
             "description": "Expert in searching and booking flights. Use this agent for all flight-related queries including searches, pricing, schedules, and availability.",
-            "prompt": """You are a specialized flight booking assistant with expertise in finding the best flight options.
+            "system_prompt": """You are a specialized flight booking assistant with expertise in finding the best flight options.
 
 Your responsibilities:
 - Search for flights based on traveler requirements (dates, destinations, budget, preferences)
@@ -77,7 +86,7 @@ Be concise but thorough. Always prioritize the traveler's stated preferences and
         {
             "name": "hotel-specialist",
             "description": "Expert in hotel searches and reservations. Use this agent for finding accommodations, comparing hotel options, and getting hotel details.",
-            "prompt": """You are a specialized hotel reservation assistant focused on finding the perfect accommodation.
+            "system_prompt": """You are a specialized hotel reservation assistant focused on finding the perfect accommodation.
 
 Your responsibilities:
 - Search for hotels based on location, dates, budget, and preferences
@@ -99,7 +108,7 @@ Focus on matching hotels to the traveler's specific needs and preferences.""",
         {
             "name": "payment-specialist",
             "description": "Handles payment processing and transaction verification. Use this agent for processing bookings, verifying payments, and managing payment methods.",
-            "prompt": """You are a payment processing specialist ensuring secure and smooth transactions.
+            "system_prompt": """You are a payment processing specialist ensuring secure and smooth transactions.
 
 Your responsibilities:
 - Process payments for flight and hotel bookings
@@ -121,7 +130,7 @@ Always ensure payment security and provide clear transaction information.""",
         {
             "name": "ancillary-specialist",
             "description": "Manages extra travel services including baggage, seat selection, insurance, and car rentals. Use for any add-on services.",
-            "prompt": """You are an ancillary services specialist helping travelers customize their journey.
+            "system_prompt": """You are an ancillary services specialist helping travelers customize their journey.
 
 Your responsibilities:
 - Provide baggage options and pricing (checked, carry-on, excess)
@@ -147,7 +156,7 @@ Help travelers make informed decisions about add-on services.""",
         {
             "name": "activity-specialist",
             "description": "Recommends attractions, tours, activities, and restaurants at the destination. Use for entertainment and dining suggestions.",
-            "prompt": """You are a local activity and dining expert helping travelers make the most of their trip.
+            "system_prompt": """You are a local activity and dining expert helping travelers make the most of their trip.
 
 Your responsibilities:
 - Recommend popular attractions and hidden gems
@@ -173,7 +182,7 @@ Help create memorable experiences at the destination.""",
         {
             "name": "weather-specialist",
             "description": "Provides weather forecasts and climate information for travel planning. Use for weather-related queries and packing advice.",
-            "prompt": """You are a weather and climate specialist helping travelers prepare for their journey.
+            "system_prompt": """You are a weather and climate specialist helping travelers prepare for their journey.
 
 Your responsibilities:
 - Provide weather forecasts for travel dates and destinations

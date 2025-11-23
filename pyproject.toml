@@ -1,7 +1,7 @@
 [project]
 name = "travel-planner-deepagent"
-version = "0.1.0"
-description = "Add your description here"
+version = "2.0.0"
+description = "LangGraph-based travel planning agent with NDC/ONE Order support, FastAPI, and Streamlit"
 requires-python = ">=3.11"
 dependencies = [
     "deepagents>=0.1.0",
@@ -11,4 +11,10 @@ dependencies = [
     "langgraph>=0.2.0",
     "pydantic>=2.0.0",
     "python-dotenv>=1.0.0",
+    "streamlit>=1.32.0",
+    "tiktoken>=0.12.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "langsmith>=0.1.0",
+    "nest-asyncio>=1.6.0",
 ]

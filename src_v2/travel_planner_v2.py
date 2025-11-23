@@ -16,6 +16,7 @@ from langchain_openai import ChatOpenAI
 
 from .workflows.travel_workflow import create_travel_workflow
 from .schemas.state import TravelPlannerState
+from .monitoring import setup_monitoring, trace_workflow
 
 
 class TravelPlannerV2:
@@ -34,7 +35,8 @@ class TravelPlannerV2:
         self,
         model: Optional[str] = None,
         provider: str = "anthropic",
-        verbose: bool = False
+        verbose: bool = False,
+        enable_monitoring: bool = True
     ):
         """
         Initialize the travel planner.
@@ -43,8 +45,14 @@ class TravelPlannerV2:
             model: Model name to use (default: claude-sonnet-4-5 or gpt-4-turbo)
             provider: LLM provider - 'anthropic', 'openai', or 'openrouter'
             verbose: Enable verbose logging
+            enable_monitoring: Enable LangSmith monitoring (if configured in .env)
         """
         self.verbose = verbose
+        self.enable_monitoring = enable_monitoring
+
+        # Setup monitoring if enabled
+        if enable_monitoring:
+            setup_monitoring()
 
         # Initialize LLM
         if provider == "anthropic":
@@ -122,7 +130,18 @@ class TravelPlannerV2:
         if self.verbose:
             print("🚀 Starting travel planning workflow...")
 
-        result = await self.workflow.ainvoke(initial_state)
+        # Execute with optional monitoring
+        if self.enable_monitoring:
+            metadata = {
+                "query": query,
+                "destination": destination,
+                "budget": budget,
+                "passengers": num_passengers
+            }
+            with trace_workflow("travel_planning", metadata):
+                result = await self.workflow.ainvoke(initial_state)
+        else:
+            result = await self.workflow.ainvoke(initial_state)
 
         if self.verbose:
             print(f"✅ Workflow completed: {result.get('completed_steps', [])}")

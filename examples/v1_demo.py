@@ -17,9 +17,9 @@ def simple_demo():
     load_dotenv()
 
     # Check for API key
-    if not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("OPENAI_API_KEY"):
+    if not os.getenv("ANTHROPIC_API_KEY") and not os.getenv("OPENAI_API_KEY") and not os.getenv("OPENROUTER_API_KEY"):
         print("⚠️  ERROR: No API key found!")
-        print("Please set ANTHROPIC_API_KEY or OPENAI_API_KEY in your .env file")
+        print("Please set ANTHROPIC_API_KEY, OPENAI_API_KEY, or OPENROUTER_API_KEY in your .env file")
         print()
         print("Example .env file:")
         print("ANTHROPIC_API_KEY=your_key_here")
@@ -27,7 +27,13 @@ def simple_demo():
 
     # Create the travel planner
     print("🚀 Initializing Travel Planner Agent...")
-    provider = "anthropic" if os.getenv("ANTHROPIC_API_KEY") else "openai"
+    if os.getenv("ANTHROPIC_API_KEY"):
+        provider = "anthropic"
+    elif os.getenv("OPENAI_API_KEY"):
+        provider = "openai"
+    else:
+        provider = "openrouter"
+        
     planner = create_travel_planner(provider=provider)
     print(f"✅ Agent initialized with {provider} provider")
     print()
@@ -49,7 +55,13 @@ def simple_demo():
         print("-" * 80)
 
         try:
-            result = planner.invoke(query)
+            result = planner.invoke({"messages": [{"role": "user", "content": query}]})
+            print(f"DEBUG: Raw result type: {type(result)}")
+            print(f"DEBUG: Raw result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
+            if isinstance(result, dict) and "messages" in result:
+                print(f"DEBUG: Number of messages: {len(result['messages'])}")
+                for i, m in enumerate(result['messages']):
+                    print(f"DEBUG: Message {i}: type={type(m)}, content={m.content if hasattr(m, 'content') else 'No content'}")
 
             # Display the conversation
             for msg in result["messages"]:

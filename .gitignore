@@ -45,3 +45,24 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
+test_output.log
+
+# Cache
+.pytest_cache/
+.cache/
+
+# Streamlit
+.streamlit/
+
+# LangSmith
+.langsmith/
+
+# Temp files
+*.tmp
+*.bak
+*.orig
+
+# Test outputs
+test_results/
+coverage/
